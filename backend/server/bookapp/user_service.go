@@ -3,14 +3,19 @@ package bookapp
 import (
 	"context"
 	"log"
+
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 type userServiceServer struct {
+	db *pgxpool.Pool
 	UnimplementedUserServiceServer
 }
 
-func NewUserServiceServer() *userServiceServer {
-	return &userServiceServer{}
+func NewUserServiceServer(db *pgxpool.Pool) *userServiceServer {
+	return &userServiceServer{
+		db: db,
+	}
 }
 
 func (s *userServiceServer) CreateUser(ctx context.Context, req *CreateUserRequest) (*UserResponse, error) {
