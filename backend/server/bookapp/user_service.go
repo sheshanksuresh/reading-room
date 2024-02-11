@@ -2,9 +2,12 @@ package bookapp
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"time"
 
 	"github.com/jackc/pgx/v4/pgxpool"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type userServiceServer struct {
@@ -19,9 +22,27 @@ func NewUserServiceServer(db *pgxpool.Pool) *userServiceServer {
 }
 
 func (s *userServiceServer) CreateUser(ctx context.Context, req *CreateUserRequest) (*UserResponse, error) {
-	// Implement data entry validation and processing logic
-	log.Printf("Received: %v", req)
-	return &UserResponse{Id: "123", Username: req.Username, Email: req.Email, FirstName: req.FirstName, LastName: req.LastName}, nil
+	if req.Username == "" || req.Email == "" || req.Password == "" || req.FirstName == "" || req.LastName == "" {
+		return nil, fmt.Errorf("Missing user form field.")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("Failed to hash password.")
+		return nil, fmt.Errorf("Failed due to internal error.")
+	}
+
+	var userId int
+	err = s.db.QueryRow(ctx, "INSERT INTO users (username, email, password_hash, first_name, last_name, created_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING user_id", req.Username, req.Email, hashedPassword, req.FirstName, req.LastName, time.Now()).Scan(&userId)
+
+	if err != nil {
+		log.Printf("Failed to insert user into db.")
+		return nil, fmt.Errorf("Failed to create user: %v", err)
+	}
+
+	log.Printf("Created user ID: %v", userId)
+
+	return &UserResponse{Id: fmt.Sprintf("%d", userId), Username: req.Username, Email: req.Email, FirstName: req.FirstName, LastName: req.LastName}, nil
 }
 
 func (s *userServiceServer) GetUser(ctx context.Context, req *GetUserRequest) (*UserResponse, error) {
